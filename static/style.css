@@ -62,6 +62,27 @@ td.wrap { white-space: normal; min-width: 260px; }
 th { position: sticky; top: 0; background: var(--card); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* Navegação entre exibições */
+.views { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.views a { padding: 8px 14px; text-decoration: none; color: var(--muted); font-weight: 600;
+           border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.views a:hover { color: var(--text); }
+.views a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.count { margin: 0 0 12px; color: var(--muted); }
+
+/* Exibição por secretaria: uma coluna por secretaria */
+.secretarias { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.sec-col { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 12px;
+           background: var(--accent-soft); }
+.sec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 4px 0; }
+.sec-head h2 { margin: 0; color: var(--text); font-size: 18px; }
+.sec-count { min-width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0 6px;
+             border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.sec-total { width: 100%; color: var(--muted); font-size: 13px; }
+body.tv .sec-head h2 { font-size: 24px; }
+body.tv .secretarias { grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); }
+
 .site-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line);
                text-align: center; font-size: 11px; color: var(--muted); }
 

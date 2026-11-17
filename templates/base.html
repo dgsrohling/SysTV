@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Painel de Licitações{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{{ 'tv' if tv }}">
+<header>
+  <div>
+    <h1>{{ self.title() }}</h1>
+    <div class="meta">
+      {% if data.data_ref %}Referência {{ data.data_ref }} · {% endif %}
+      {% for e in data.equipes %}<span class="team">{{ e }}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="meta right">
+    <span class="live-dot" id="live-dot"></span>
+    Atualizado em <span data-live="updated">{{ updated }}</span>
+    · atualiza sozinho a cada {{ refresh }}s
+    {% if not tv %}<br>
+      <a href="{{ url_for('refresh', gid=gid or None, view=request.endpoint) }}">Atualizar agora</a> ·
+      <a href="{{ url_for(request.endpoint, gid=gid or None, tv=1, **filters) }}">Modo TV</a> ·
+      <a href="{{ sheet_url }}" target="_blank" rel="noopener">Abrir planilha</a>
+    {% endif %}
+  </div>
+</header>
+
+{% if not tv %}
+<nav class="views">
+  {% for endpoint, label in views %}
+  <a href="{{ url_for(endpoint, gid=gid or None, **filters) }}" class="{{ 'active' if request.endpoint == endpoint }}">{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{% block content %}{% endblock %}
+
+<footer class="site-footer">Developed by D. Rohling ®</footer>
+
+{% block scripts %}{% endblock %}
+<script>
+  // Atualização automática: busca a mesma página (com os mesmos filtros) e troca só
+  // as partes marcadas com data-live. Linhas novas na planilha viram cards novos sozinhas.
+  (function () {
+    const dot = document.getElementById('live-dot');
+    async function atualizar() {
+      try {
+        const resp = await fetch(location.href, { cache: 'no-store' });
+        if (!resp.ok) throw new Error(resp.status);
+        const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+        document.querySelectorAll('[data-live]').forEach(el => {
+          const novo = doc.querySelector(`[data-live="${el.dataset.live}"]`);
+          if (novo && novo.innerHTML !== el.innerHTML) el.innerHTML = novo.innerHTML;
+        });
+        document.dispatchEvent(new CustomEvent('painel:atualizado', { detail: doc }));
+        dot.classList.remove('offline');
+        dot.title = 'Conectado';
+      } catch (e) {
+        dot.classList.add('offline');
+        dot.title = 'Falha ao atualizar — exibindo os últimos dados obtidos';
+      }
+    }
+    setInterval(atualizar, {{ refresh }} * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) atualizar(); });
+  })();
+</script>
+</body>
+</html>

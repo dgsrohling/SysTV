@@ -112,7 +112,9 @@ def load_sheet(gid: str, force: bool = False) -> dict:
     rows = list(csv.reader(io.StringIO(resp.text)))
 
     # Localiza a linha de cabeçalho (primeira célula "ID")
-    hdr_idx = next(i for i, r in enumerate(rows) if r and norm(r[0]) == "id")
+    hdr_idx = next((i for i, r in enumerate(rows) if r and norm(r[0]) == "id"), None)
+    if hdr_idx is None:
+        raise SheetError("Cabeçalho não encontrado: a planilha precisa ter uma linha começando com \"ID\".")
     header = [norm(h) for h in rows[hdr_idx]]
     info_row = rows[hdr_idx - 1] if hdr_idx > 0 else []
     title = " ".join(c for c in (rows[0] if hdr_idx > 1 else []) if c.strip())
@@ -170,17 +172,43 @@ def apply_filters(items, args):
     return out
 
 
+FILTER_KEYS = ("fase_nome", "secretaria", "responsavel", "presidente")
+VIEWS = [("dashboard", "Painel"), ("cards", "Cards"), ("secretarias", "Por secretaria")]
+
+
+class SheetError(Exception):
+    """A planilha não pôde ser lida ou não está no formato esperado."""
+
+
+@app.errorhandler(requests.RequestException)
+@app.errorhandler(SheetError)
+def sheet_error(exc):
+    return render_template("error.html", error=str(exc)), 502
+
+
+def contexto(**extra):
+    """Dados e variáveis comuns a todas as exibições."""
+    gid = request.args.get("gid", SHEET_GID)
+    data = load_sheet(gid)
+    filters = {k: v for k, v in request.args.items() if v and (k in FILTER_KEYS or k == "q")}
+    return dict(
+        data=data,
+        items=apply_filters(data["items"], request.args),
+        filters=filters,
+        gid=gid,
+        tv=request.args.get("tv") == "1",
+        refresh=REFRESH,
+        views=VIEWS,
+        updated=time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(data["fetched"])),
+        sheet_url=f"https://docs.google.com/spreadsheets/d/{SHEET_ID}",
+        **extra,
+    )
+
+
 @app.route("/")
 def dashboard():
-    gid = request.args.get("gid", SHEET_GID)
-    tv = request.args.get("tv") == "1"
-    try:
-        data = load_sheet(gid)
-    except Exception as exc:  # noqa: BLE001
-        return render_template("error.html", error=str(exc)), 502
-
-    all_items = data["items"]
-    items = apply_filters(all_items, request.args)
+    ctx = contexto()
+    items = ctx["items"]
     hoje = datetime.now().date()
 
     total_orcado = sum(i["orcado_num"] or 0 for i in items)
@@ -210,26 +238,34 @@ def dashboard():
         {"title": "Processos por secretaria", **count("secretaria")},
         {"title": "Processos por responsável", **count("responsavel")},
     ]
+    options = {k: sorted({i[k] for i in ctx["data"]["items"] if i[k]}) for k in FILTER_KEYS}
+    return render_template("dashboard.html", kpis=kpis, charts=charts, options=options, **ctx)
 
-    options = {
-        key: sorted({i[key] for i in all_items if i[key]})
-        for key in ("secretaria", "responsavel", "presidente", "fase_nome")
-    }
-    return render_template(
-        "dashboard.html",
-        data=data, items=items, kpis=kpis, charts=charts, options=options,
-        filters={k: v for k, v in request.args.items() if k in options or k == "q"},
-        gid=gid, tv=tv, refresh=REFRESH,
-        updated=time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(data["fetched"])),
-        sheet_url=f"https://docs.google.com/spreadsheets/d/{SHEET_ID}",
-    )
+
+@app.route("/cards")
+def cards():
+    return render_template("cards.html", **contexto())
+
+
+@app.route("/secretarias")
+def secretarias():
+    ctx = contexto()
+    grupos = {}
+    for i in ctx["items"]:
+        grupos.setdefault(i["secretaria"] or "Não informada", []).append(i)
+    lista = []
+    for nome, itens in sorted(grupos.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        total = sum(i["orcado_num"] or 0 for i in itens)
+        lista.append({"nome": nome, "itens": itens, "total": short_brl(total), "total_full": brl(total)})
+    return render_template("secretarias.html", secretarias=lista, **ctx)
 
 
 @app.route("/refresh")
 def refresh():
     gid = request.args.get("gid", SHEET_GID)
     load_sheet(gid, force=True)
-    return redirect(url_for("dashboard", gid=gid))
+    view = request.args.get("view", "dashboard")
+    return redirect(url_for(view if view in dict(VIEWS) else "dashboard", gid=gid or None))
 
 
 @app.route("/api/licitacoes")

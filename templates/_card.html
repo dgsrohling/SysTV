@@ -1,0 +1,20 @@
+<article class="card proc">
+  <div class="proc-top">
+    <span class="pid">#{{ i.id }}</span>
+    {% if i.secretaria and not esconder_secretaria %}<span class="tag">{{ i.secretaria }}</span>{% endif %}
+    {% if i.habilitado %}<span class="tag ok">Habilitado</span>{% endif %}
+    {% if i.homologacao %}<span class="tag ok">Homologado {{ i.homologacao }}</span>{% endif %}
+  </div>
+  <h3>{{ i.obra }}</h3>
+  <div class="fase">
+    {% if i.fase_num is not none %}<b>{{ i.fase_num }}</b>{% endif %}{{ i.fase_nome }}
+  </div>
+  <dl>
+    <div><dt>Orçado</dt><dd>{{ i.orcado_fmt }}</dd></div>
+    <div><dt>Vencedor</dt><dd>{{ i.vencedor_fmt }}{% if i.desconto_calc != '—' %} <small>(desc. {{ i.desconto_calc }})</small>{% endif %}</dd></div>
+    <div><dt>Abertura</dt><dd>{{ i.abertura or '—' }}</dd></div>
+    <div><dt>Responsável / Presidente</dt><dd>{{ i.responsavel or '—' }} / {{ i.presidente or '—' }}</dd></div>
+  </dl>
+  {% if i.observacao %}<p class="obs">{{ i.observacao }}</p>{% endif %}
+  <footer>SEI {{ i.sei or '—' }} · atualizado {{ i.atualizado or '—' }}</footer>
+</article>

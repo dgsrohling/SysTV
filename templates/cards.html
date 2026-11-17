@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Processos em Licitação{% endblock %}
+
+{% block content %}
+<div data-live="cards">
+  <p class="count">{{ items|length }} processo{{ 's' if items|length != 1 }}</p>
+  <section class="processos">
+    {% for i in items %}{% include "_card.html" %}{% else %}<p class="empty">Nenhum processo encontrado.</p>{% endfor %}
+  </section>
+</div>
+{% endblock %}
