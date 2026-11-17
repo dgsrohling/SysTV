@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Erro ao carregar planilha</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="card" style="max-width:640px;margin:48px auto">
+    <h2>Não foi possível carregar a planilha</h2>
+    <p>{{ error }}</p>
+    <p>Confira a conexão com a internet e se a planilha continua compartilhada como <em>"Qualquer pessoa com o link pode ver"</em>.</p>
+    <p><a href="/">Tentar novamente</a></p>
+  </div>
+</body>
+</html>

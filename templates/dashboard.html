@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel de Licitações</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body class="{{ 'tv' if tv }}">
+<header>
+  <div>
+    <h1>Painel de Licitações</h1>
+    <div class="meta">
+      {% if data.data_ref %}Referência {{ data.data_ref }} · {% endif %}
+      {% for e in data.equipes %}<span class="team">{{ e }}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="meta right">
+    <span class="live-dot" id="live-dot"></span>
+    Atualizado em <span data-live="updated">{{ updated }}</span>
+    · atualiza sozinho a cada {{ refresh }}s
+    {% if not tv %}<br>
+      <a href="{{ url_for('refresh', gid=gid) }}">Atualizar agora</a> ·
+      <a href="{{ url_for('dashboard', gid=gid, tv=1, **filters) }}">Modo TV</a> ·
+      <a href="{{ sheet_url }}" target="_blank" rel="noopener">Abrir planilha</a>
+    {% endif %}
+  </div>
+</header>
+
+{% if not tv %}
+<form class="filters" method="get">
+  <input type="hidden" name="gid" value="{{ gid }}">
+  <label>Buscar
+    <input type="search" name="q" value="{{ filters.get('q', '') }}" placeholder="Obra, SEI, observação..." onchange="this.form.submit()">
+  </label>
+  {% for key, label in [('fase_nome','Fase'),('secretaria','Secretaria'),('responsavel','Responsável'),('presidente','Presidente')] %}
+  <label>{{ label }}
+    <select name="{{ key }}" onchange="this.form.submit()">
+      <option value="">Todos</option>
+      {% for v in options[key] %}<option {{ 'selected' if filters.get(key) == v }}>{{ v }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endfor %}
+  {% if filters %}<a class="clear" href="{{ url_for('dashboard', gid=gid) }}">Limpar filtros</a>{% endif %}
+</form>
+{% endif %}
+
+<section class="kpis" data-live="kpis">
+  {% for k in kpis %}
+  <div class="card kpi" title="{{ k.hint or '' }}">
+    <span>{{ k.label }}</span><strong>{{ k.value }}</strong>
+    {% if k.hint and k.label == 'Próxima abertura' %}<small>{{ k.hint }}</small>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+<section class="processos" data-live="processos">
+  {% for i in items %}
+  <article class="card proc">
+    <div class="proc-top">
+      <span class="pid">#{{ i.id }}</span>
+      {% if i.secretaria %}<span class="tag">{{ i.secretaria }}</span>{% endif %}
+      {% if i.habilitado %}<span class="tag ok">Habilitado</span>{% endif %}
+      {% if i.homologacao %}<span class="tag ok">Homologado {{ i.homologacao }}</span>{% endif %}
+    </div>
+    <h3>{{ i.obra }}</h3>
+    <div class="fase">
+      {% if i.fase_num is not none %}<b>{{ i.fase_num }}</b>{% endif %}{{ i.fase_nome }}
+    </div>
+    <dl>
+      <div><dt>Orçado</dt><dd>{{ i.orcado_fmt }}</dd></div>
+      <div><dt>Vencedor</dt><dd>{{ i.vencedor_fmt }}{% if i.desconto_calc != '—' %} <small>(desc. {{ i.desconto_calc }})</small>{% endif %}</dd></div>
+      <div><dt>Abertura</dt><dd>{{ i.abertura or '—' }}</dd></div>
+      <div><dt>Responsável / Presidente</dt><dd>{{ i.responsavel or '—' }} / {{ i.presidente or '—' }}</dd></div>
+    </dl>
+    {% if i.observacao %}<p class="obs">{{ i.observacao }}</p>{% endif %}
+    <footer>SEI {{ i.sei or '—' }} · atualizado {{ i.atualizado or '—' }}</footer>
+  </article>
+  {% else %}
+  <p class="empty">Nenhum processo encontrado.</p>
+  {% endfor %}
+</section>
+
+<section class="charts">
+  {% for c in charts %}
+  <div class="card"><h2>{{ c.title }}</h2><div class="chart-box"><canvas id="chart{{ loop.index }}"></canvas></div></div>
+  {% endfor %}
+</section>
+
+{% if not tv %}
+<section class="card">
+  <h2>Tabela detalhada</h2>
+  <div class="table-wrap">
+    <table id="data">
+      <thead><tr>
+        <th>ID</th><th>Obra</th><th>Secretaria</th><th>Nº SEI</th><th>Responsável</th>
+        <th>Envio PROGE</th><th>Publicação edital</th><th>Abertura</th><th>Fase</th>
+        <th>Presidente</th><th class="num">Valor orçado</th><th>Valor vencedor (planilha)</th>
+        <th>Homologação</th><th>Atualizado em</th>
+      </tr></thead>
+      <tbody data-live="tabela">
+      {% for i in items %}
+        <tr>
+          <td>{{ i.id }}</td><td>{{ i.obra }}</td><td>{{ i.secretaria }}</td><td>{{ i.sei }}</td>
+          <td>{{ i.responsavel }}</td><td>{{ i.envio_proge }}</td><td>{{ i.publicacao }}</td>
+          <td>{{ i.abertura }}</td><td>{{ i.fase }}</td><td>{{ i.presidente }}</td>
+          <td class="num">{{ i.orcado_fmt }}</td><td class="wrap">{{ i.valor_vencedor }}</td>
+          <td>{{ i.homologacao }}</td><td>{{ i.atualizado }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<footer class="site-footer">Developed by D. Rohling ®</footer>
+
+<script type="application/json" id="charts-data">{{ charts|tojson }}</script>
+<script>
+  const REFRESH_MS = {{ refresh }} * 1000;
+  const css = getComputedStyle(document.documentElement);
+  Chart.defaults.color = css.getPropertyValue('--muted').trim();
+  Chart.defaults.borderColor = css.getPropertyValue('--line').trim();
+  Chart.defaults.font.size = document.body.classList.contains('tv') ? 16 : 12;
+
+  const chartObjs = JSON.parse(document.getElementById('charts-data').textContent).map((c, i) =>
+    new Chart(document.getElementById('chart' + (i + 1)), {
+      type: 'bar',
+      data: { labels: c.labels, datasets: [{ data: c.values, backgroundColor: css.getPropertyValue('--accent').trim(), borderRadius: 4, maxBarThickness: 28 }] },
+      options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } },
+                 scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } }
+    })
+  );
+
+  // Atualização automática: busca a mesma página (com os mesmos filtros) e troca só o conteúdo.
+  const dot = document.getElementById('live-dot');
+  async function atualizar() {
+    try {
+      const resp = await fetch(location.href, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(resp.status);
+      const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+      document.querySelectorAll('[data-live]').forEach(el => {
+        const novo = doc.querySelector(`[data-live="${el.dataset.live}"]`);
+        if (novo && novo.innerHTML !== el.innerHTML) el.innerHTML = novo.innerHTML;
+      });
+      JSON.parse(doc.getElementById('charts-data').textContent).forEach((c, i) => {
+        const ch = chartObjs[i];
+        if (!ch) return;
+        ch.data.labels = c.labels;
+        ch.data.datasets[0].data = c.values;
+        ch.update('none');
+      });
+      dot.classList.remove('offline');
+      dot.title = 'Conectado';
+    } catch (e) {
+      dot.classList.add('offline');
+      dot.title = 'Falha ao atualizar — exibindo os últimos dados obtidos';
+    }
+  }
+  setInterval(atualizar, REFRESH_MS);
+  // Ao voltar para a aba depois de um tempo, atualiza na hora
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) atualizar(); });
+</script>
+</body>
+</html>
